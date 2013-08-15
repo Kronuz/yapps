@@ -85,6 +85,7 @@ parser ParserDescription:
                     (
                       "token" ID
                       ":" Str   {{ tid = (ID, Str) }}
+                        ( STMT  {{ tid += (STMT[2:-2],) }} )?
                                 {{ tok.append(tid) }}
                     | "ignore"
                       ":" Str   {{ ign = ('#ignore', Str) }}

@@ -125,6 +125,9 @@ class ParserDescription(runtime.Parser):
                 self._scan('":"', context=_context)
                 Str = self.Str(_context)
                 tid = (ID, Str)
+                if self._peek('STMT', '"token"', '"ignore"', 'EOF', '"rule"', context=_context) == 'STMT':
+                    STMT = self._scan('STMT', context=_context)
+                    tid += (STMT[2:-2],)
                 tok.append(tid)
             else:  # == '"ignore"'
                 self._scan('"ignore"', context=_context)
