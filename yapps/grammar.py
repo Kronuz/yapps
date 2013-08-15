@@ -107,7 +107,7 @@ class ParserDescription(runtime.Parser):
     def Options(self, _parent=None):
         _context = self.Context(_parent, self._scanner, 'Options', [])
         opt = {}
-        while self._peek('"option"', '"token"', '"ignore"', 'EOF', '"rule"', context=_context) == '"option"':
+        while self._peek(self._option_ignore_rule_EOF_token, context=_context) == self._option:
             self._scan('"option"', context=_context)
             self._scan('":"', context=_context)
             Str = self.Str(_context)
@@ -117,24 +117,24 @@ class ParserDescription(runtime.Parser):
     def Tokens(self, _parent=None):
         _context = self.Context(_parent, self._scanner, 'Tokens', [])
         tok = []
-        while self._peek('"token"', '"ignore"', 'EOF', '"rule"', context=_context) in ['"token"', '"ignore"']:
-            _token = self._peek('"token"', '"ignore"', context=_context)
-            if _token == '"token"':
+        while self._peek(self._ignore_rule_EOF_token, context=_context) in self._ignore_token:
+            _token = self._peek(self._ignore_token, context=_context)
+            if _token == self._token:
                 self._scan('"token"', context=_context)
                 ID = self._scan('ID', context=_context)
                 self._scan('":"', context=_context)
                 Str = self.Str(_context)
                 tid = (ID, Str)
-                if self._peek('STMT', '"token"', '"ignore"', 'EOF', '"rule"', context=_context) == 'STMT':
+                if self._peek(self._ignore_rule_token_STMT_EOF, context=_context) == self._STMT:
                     STMT = self._scan('STMT', context=_context)
                     tid += (STMT[2:-2],)
                 tok.append(tid)
-            else:  # == '"ignore"'
+            else:  # == self._ignore
                 self._scan('"ignore"', context=_context)
                 self._scan('":"', context=_context)
                 Str = self.Str(_context)
                 ign = ('#ignore', Str)
-                if self._peek('STMT', '"token"', '"ignore"', 'EOF', '"rule"', context=_context) == 'STMT':
+                if self._peek(self._ignore_rule_token_STMT_EOF, context=_context) == self._STMT:
                     STMT = self._scan('STMT', context=_context)
                     ign += (STMT[2:-2],)
                 tok.append(ign)
@@ -143,7 +143,7 @@ class ParserDescription(runtime.Parser):
     def Rules(self, tokens, _parent=None):
         _context = self.Context(_parent, self._scanner, 'Rules', [tokens])
         rul = []
-        while self._peek('"rule"', 'EOF', context=_context) == '"rule"':
+        while self._peek(self._rule_EOF, context=_context) == self._rule:
             self._scan('"rule"', context=_context)
             ID = self._scan('ID', context=_context)
             OptParam = self.OptParam(_context)
@@ -156,7 +156,7 @@ class ParserDescription(runtime.Parser):
         _context = self.Context(_parent, self._scanner, 'ClauseA', [rule, tokens])
         ClauseB = self.ClauseB(rule, tokens, _context)
         v = [ClauseB]
-        while self._peek('OR', 'RP', 'RB', '"rule"', 'EOF', context=_context) == 'OR':
+        while self._peek(self._rule_RP_OR_RB_EOF, context=_context) == self._OR:
             OR = self._scan('OR', context=_context)
             ClauseB = self.ClauseB(rule, tokens, _context)
             v.append(ClauseB)
@@ -165,7 +165,7 @@ class ParserDescription(runtime.Parser):
     def ClauseB(self, rule, tokens, _parent=None):
         _context = self.Context(_parent, self._scanner, 'ClauseB', [rule, tokens])
         v = []
-        while self._peek('STR', 'ID', 'LP', 'LB', 'STMT', 'OR', 'RP', 'RB', '"rule"', 'EOF', context=_context) in ['STR', 'ID', 'LP', 'LB', 'STMT']:
+        while self._peek(self._LB_LP_rule_RB_STMT_ID_STR_RP__, context=_context) in self._STMT_LB_ID_STR_LP:
             ClauseC = self.ClauseC(rule, tokens, _context)
             v.append(ClauseC)
         return cleanup_sequence(rule, v)
@@ -173,49 +173,49 @@ class ParserDescription(runtime.Parser):
     def ClauseC(self, rule, tokens, _parent=None):
         _context = self.Context(_parent, self._scanner, 'ClauseC', [rule, tokens])
         ClauseD = self.ClauseD(rule, tokens, _context)
-        _token = self._peek('PLUS', 'STAR', 'QUEST', 'STR', 'ID', 'LP', 'LB', 'STMT', 'OR', 'RP', 'RB', '"rule"', 'EOF', context=_context)
-        if _token == 'PLUS':
+        _token = self._peek(self._RB_STAR_LP_rule_RP_STMT_OR_QU_, context=_context)
+        if _token == self._PLUS:
             PLUS = self._scan('PLUS', context=_context)
             return parsetree.Plus(rule, ClauseD)
-        elif _token == 'STAR':
+        elif _token == self._STAR:
             STAR = self._scan('STAR', context=_context)
             return parsetree.Star(rule, ClauseD)
-        elif _token == 'QUEST':
+        elif _token == self._QUEST:
             QUEST = self._scan('QUEST', context=_context)
             return parsetree.Option(rule, ClauseD)
-        else:
+        else:  # in self._LB_LP_rule_RB_STMT_ID_STR_RP__
             return ClauseD
 
     def ClauseD(self, rule, tokens, _parent=None):
         _context = self.Context(_parent, self._scanner, 'ClauseD', [rule, tokens])
-        _token = self._peek('STR', 'ID', 'LP', 'LB', 'STMT', context=_context)
-        if _token == 'STR':
+        _token = self._peek(self._STMT_LB_ID_STR_LP, context=_context)
+        if _token == self._STR:
             STR = self._scan('STR', context=_context)
             t = (STR, eval(STR, {}, {}))
             if t not in tokens:
                 tokens.insert(0, t)
             return parsetree.Terminal(rule, STR)
-        elif _token == 'ID':
+        elif _token == self._ID:
             ID = self._scan('ID', context=_context)
             OptParam = self.OptParam(_context)
             return resolve_name(rule, tokens, ID, OptParam)
-        elif _token == 'LP':
+        elif _token == self._LP:
             LP = self._scan('LP', context=_context)
             ClauseA = self.ClauseA(rule, tokens, _context)
             RP = self._scan('RP', context=_context)
             return ClauseA
-        elif _token == 'LB':
+        elif _token == self._LB:
             LB = self._scan('LB', context=_context)
             ClauseA = self.ClauseA(rule, tokens, _context)
             RB = self._scan('RB', context=_context)
             return parsetree.Option(rule, ClauseA)
-        else:  # == 'STMT'
+        else:  # == self._STMT
             STMT = self._scan('STMT', context=_context)
             return parsetree.Eval(rule, STMT[2:-2])
 
     def OptParam(self, _parent=None):
         _context = self.Context(_parent, self._scanner, 'OptParam', [])
-        if self._peek('ATTR', '":"', 'PLUS', 'STAR', 'QUEST', 'STR', 'ID', 'LP', 'LB', 'STMT', 'OR', 'RP', 'RB', '"rule"', 'EOF', context=_context) == 'ATTR':
+        if self._peek(self._RB_STAR_ATTR_LP_rule_RP_STMT__, context=_context) == self._ATTR:
             ATTR = self._scan('ATTR', context=_context)
             return ATTR[2:-2]
         return ''
@@ -224,6 +224,31 @@ class ParserDescription(runtime.Parser):
         _context = self.Context(_parent, self._scanner, 'Str', [])
         STR = self._scan('STR', context=_context)
         return eval(STR, {}, {})
+
+    _RB_STAR_ATTR_LP_rule_RP_STMT__ = set(['RB', 'STAR', 'ATTR', 'LP', '"rule"', 'RP', 'STMT', 'OR', 'QUEST', 'PLUS', '":"', 'STR', 'LB', 'ID', 'EOF'])
+    _STR = 'STR'
+    _RB_STAR_LP_rule_RP_STMT_OR_QU_ = set(['RB', 'STAR', 'LP', '"rule"', 'RP', 'STMT', 'OR', 'QUEST', 'PLUS', 'STR', 'LB', 'ID', 'EOF'])
+    _LP = 'LP'
+    _STAR = 'STAR'
+    _ignore_rule_EOF_token = set(['"ignore"', '"rule"', 'EOF', '"token"'])
+    _ATTR = 'ATTR'
+    _rule = '"rule"'
+    _LB = 'LB'
+    _option = '"option"'
+    _STMT = 'STMT'
+    _token = '"token"'
+    _rule_RP_OR_RB_EOF = set(['"rule"', 'RP', 'OR', 'RB', 'EOF'])
+    _option_ignore_rule_EOF_token = set(['"option"', '"ignore"', '"rule"', 'EOF', '"token"'])
+    _rule_EOF = set(['"rule"', 'EOF'])
+    _ignore = '"ignore"'
+    _QUEST = 'QUEST'
+    _OR = 'OR'
+    _PLUS = 'PLUS'
+    _STMT_LB_ID_STR_LP = set(['STMT', 'LB', 'ID', 'STR', 'LP'])
+    _ignore_rule_token_STMT_EOF = set(['"ignore"', '"rule"', '"token"', 'STMT', 'EOF'])
+    _LB_LP_rule_RB_STMT_ID_STR_RP__ = set(['LB', 'LP', '"rule"', 'RB', 'STMT', 'ID', 'STR', 'RP', 'OR', 'EOF'])
+    _ID = 'ID'
+    _ignore_token = set(['"ignore"', '"token"'])
 
 
 def parse(rule, text):

@@ -36,6 +36,7 @@ class Generator:
         self.postparser = None
 
         self.tokens = {}  # Map from tokens to regexps
+        self.sets = {}  # Map for restriction sets
         self.ignore = {}  # List of token names to ignore in parsing, map to statements
         self.terminals = []  # List of token names (to maintain ordering)
         for t in tokens:
@@ -166,11 +167,11 @@ class Generator:
         for a in args:
             self.output.write(a)
 
-    def in_test(self, expr, full, set):
-        """Generate a test of (expr) being in (set), where (set) is a subset of (full)
+    def in_test(self, expr, full, st, as_set=False):
+        """Generate a test of (expr) being in (st), where (st) is a subset of (full)
 
         expr is a string (Python expression)
-        set is a list of values (which will be converted with repr)
+        st is a list of values (which will be converted with repr)
         full is the list of all values expr could possibly evaluate to
 
         >>> t = Generator('', [], [], [])
@@ -188,51 +189,100 @@ class Generator:
         'x != 5'
         """
 
-        if not set:
+        if not st:
             return '0'
-        if len(set) == 1:
-            return '%s == %s' % (expr, repr(set[0]))
-        if full and len(set) > len(full)/2:
+        if as_set:
+            n = None
+            for k, v in self.sets.items():
+                if set(v) == set(st):
+                    n = k
+            if n is None:
+                n = '_' + re.sub(r'[^a-zA-Z_0-9]', '', '_'.join(set(st)))
+                if len(n) > 30:
+                    n = n[:30] + '_'
+                while n in self.sets:
+                    n += '_'
+                self.sets[n] = st
+            b_set = 'self.%s' % n
+        else:
+            if len(st) == 1:
+                b_set = "%s" % repr(st[0])
+            else:
+                b_set = "%s" % repr(st)
+        if len(st) == 1:
+            return '%s == %s' % (expr, b_set)
+        if full and len(st) > len(full) / 2:
             # Reverse the sense of the test.
-            not_set = [x for x in full if x not in set]
-            return self.not_in_test(expr, full, not_set)
-        return '%s in %s' % (expr, repr(set))
+            not_set = [x for x in full if x not in st]
+            return self.not_in_test(expr, full, not_set, as_set=as_set)
+        return '%s in %s' % (expr, b_set)
 
-    def not_in_test(self, expr, full, set):
+    def not_in_test(self, expr, full, st, as_set=False):
         """Like in_test, but the reverse test."""
-        if not set:
+        if not st:
             return '1'
-        if len(set) == 1:
-            return '%s != %s' % (expr, repr(set[0]))
-        return '%s not in %s' % (expr, repr(set))
+        if as_set:
+            n = None
+            for k, v in self.sets.items():
+                if set(v) == set(st):
+                    n = k
+            if n is None:
+                n = '_' + re.sub(r'[^a-zA-Z_0-9]', '', '_'.join(set(st)))
+                if len(n) > 30:
+                    n = n[:30] + '_'
+                while n in self.sets:
+                    n += '_'
+                self.sets[n] = st
+            b_set = 'self.%s' % n
+        else:
+            if len(st) == 1:
+                b_set = "%s" % repr(st[0])
+            else:
+                b_set = "%s" % repr(st)
+        if len(st) == 1:
+            return '%s != %s' % (expr, b_set)
+        return '%s not in %s' % (expr, b_set)
 
-    def peek_call(self, a):
-        """Generate a call to scan for a token in the set 'a'"""
-        assert isinstance(a, list)
-        a_set = (repr(a)[1:-1])
-        if self.equal_set(a, self.non_ignored_tokens()):
-            a_set = ''
+    def peek_call(self, st, as_set=False):
+        """Generate a call to scan for a token in the set 'st'"""
+        assert isinstance(st, list)
+        a_set = ''
+        if self.equal_set(st, self.non_ignored_tokens()):
+            st = None
         if self.has_option('context_insensitive_scanner'):
-            a_set = ''
-        if a_set:
-            a_set += ","
+            st = None
+        if st:
+            if as_set:
+                n = None
+                for k, v in self.sets.items():
+                    if set(v) == set(st):
+                        n = k
+                if n is None:
+                    n = '_' + re.sub(r'[^a-zA-Z_0-9]', '', '_'.join(set(st)))
+                    if len(n) > 30:
+                        n = n[:30] + '_'
+                    while n in self.sets:
+                        n += '_'
+                    self.sets[n] = st
+                a_set = 'self.%s, ' % n
+            else:
+                a_set = "%s, " % repr(st)
+        return 'self._peek(%scontext=_context)' % a_set
 
-        return 'self._peek(%s context=_context)' % a_set
-
-    def peek_test(self, a, b):
+    def peek_test(self, a, b, as_set=False):
         """Generate a call to test whether the next token (which could be any of
         the elements in a) is in the set b."""
         if self.subset(a, b):
             return '1'
         if self.has_option('context_insensitive_scanner'):
             a = self.non_ignored_tokens()
-        return self.in_test(self.peek_call(a), a, b)
+        return self.in_test(self.peek_call(a, as_set=as_set), a, b, as_set=as_set)
 
-    def not_peek_test(self, a, b):
+    def not_peek_test(self, a, b, as_set=False):
         """Like peek_test, but the opposite sense."""
         if self.subset(a, b):
             return '0'
-        return self.not_in_test(self.peek_call(a), a, b)
+        return self.not_in_test(self.peek_call(a, as_set=as_set), a, b, as_set=as_set)
 
     def calculate(self):
         """The main loop to compute the epsilon, first, follow sets.
@@ -320,7 +370,10 @@ class Generator:
             self.rules[r].output(self, INDENT*2)
             self.write("\n")
 
-        self.write("\n")
+        for n, s in self.sets.items():
+            self.write("    %s = %s\n" % (n, repr(s[0]) if len(s) == 1 else repr(set(s))))
+
+        self.write("\n\n")
         self.write("def parse(rule, text):\n")
         self.write(INDENT, "P = ", self.name, "(", self.name, "Scanner(text))\n")
         self.write(INDENT, "return runtime.wrap_error_reporter(P, rule)\n")
@@ -554,7 +607,7 @@ class Choice(Node):
 
     def output(self, gen, indent):
         test = "if"
-        gen.write(indent, "_token = ", gen.peek_call(self.first), "\n")
+        gen.write(indent, "_token = ", gen.peek_call(self.first, as_set=True), "\n")
         tokens_seen = []
         tokens_unseen = self.first[:]
         if gen.has_option('context_insensitive_scanner'):
@@ -573,9 +626,9 @@ class Choice(Node):
             tokens_seen = tokens_seen + testset
             if removed:
                 if not testset:
-                    print >>sys.stderr, 'Error in rule', self.rule+':'
+                    print >>sys.stderr, 'Error in rule', self.rule + ':'
                 else:
-                    print >>sys.stderr, 'Warning in rule', self.rule+':'
+                    print >>sys.stderr, 'Warning in rule', self.rule + ':'
                 print >>sys.stderr, ' *', self
                 print >>sys.stderr, ' * These tokens could be matched by more than one clause:'
                 print >>sys.stderr, ' *', ' '.join(removed)
@@ -588,16 +641,16 @@ class Choice(Node):
                         c.output(gen, indent)
                     else:
                         gen.write(indent, "else:")
-                        t = gen.in_test('', [], testset)
-                        if len(t) < 70-len(indent):
+                        t = gen.in_test('', [], testset, as_set=True)
+                        if len(t) < 70 - len(indent):
                             gen.write('  #', t)
                         gen.write("\n")
-                        c.output(gen, indent+INDENT)
+                        c.output(gen, indent + INDENT)
                 else:
                     gen.write(indent, test, " ",
-                              gen.in_test('_token', tokens_unseen, testset),
+                              gen.in_test('_token', tokens_unseen, testset, as_set=True),
                               ":\n")
-                    c.output(gen, indent+INDENT)
+                    c.output(gen, indent + INDENT)
                 test = "elif"
 
         if tokens_unseen:
@@ -641,13 +694,13 @@ class Option(Wrapper):
         if self.child.accepts_epsilon:
             print >>sys.stderr, 'Warning in rule', self.rule+': contents may be empty.'
         gen.write(indent, "if %s:\n" %
-                  gen.peek_test(self.first, self.child.first))
-        self.child.output(gen, indent+INDENT)
+                  gen.peek_test(self.first, self.child.first, as_set=True))
+        self.child.output(gen, indent + INDENT)
 
         if gen.has_option('context_insensitive_scanner'):
             gen.write(indent, "if %s:\n" %
-                    gen.not_peek_test(gen.non_ignored_tokens(), self.follow))
-            gen.write(indent+INDENT, "raise runtime.SyntaxError(pos=self._scanner.get_pos(), context=_context, msg='Need one of ' + ', '.join(%s))\n" %
+                    gen.not_peek_test(gen.non_ignored_tokens(), self.follow, as_set=True))
+            gen.write(indent + INDENT, "raise runtime.SyntaxError(pos=self._scanner.get_pos(), context=_context, msg='Need one of ' + ', '.join(%s))\n" %
                     repr(self.first))
 
 
@@ -671,16 +724,16 @@ class Plus(Wrapper):
             print >>sys.stderr, 'Warning in rule', self.rule+':'
             print >>sys.stderr, ' * The repeated pattern could be empty.  The resulting parser may not work properly.'
         gen.write(indent, "while 1:\n")
-        self.child.output(gen, indent+INDENT)
+        self.child.output(gen, indent + INDENT)
         union = self.first[:]
         gen.add_to(union, self.follow)
-        gen.write(indent+INDENT, "if %s: break\n" %
-                  gen.not_peek_test(union, self.child.first))
+        gen.write(indent + INDENT, "if %s: break\n" %
+                  gen.not_peek_test(union, self.child.first, as_set=True))
 
         if gen.has_option('context_insensitive_scanner'):
             gen.write(indent, "if %s:\n" %
-                    gen.not_peek_test(gen.non_ignored_tokens(), self.follow))
-            gen.write(indent+INDENT, "raise runtime.SyntaxError(pos=self._scanner.get_pos(), context=_context, msg='Need one of ' + ', '.join(%s))\n" %
+                    gen.not_peek_test(gen.non_ignored_tokens(), self.follow, as_set=True))
+            gen.write(indent + INDENT, "raise runtime.SyntaxError(pos=self._scanner.get_pos(), context=_context, msg='Need one of ' + ', '.join(%s))\n" %
                     repr(self.first))
 
 
@@ -704,12 +757,12 @@ class Star(Wrapper):
             print >>sys.stderr, 'Warning in rule', self.rule+':'
             print >>sys.stderr, ' * The repeated pattern could be empty.  The resulting parser probably will not work properly.'
         gen.write(indent, "while %s:\n" %
-                  gen.peek_test(self.follow, self.child.first))
-        self.child.output(gen, indent+INDENT)
+                  gen.peek_test(self.follow, self.child.first, as_set=True))
+        self.child.output(gen, indent + INDENT)
 
         # TODO: need to generate tests like this in lots of rules
         if gen.has_option('context_insensitive_scanner'):
             gen.write(indent, "if %s:\n" %
-                    gen.not_peek_test(gen.non_ignored_tokens(), self.follow))
-            gen.write(indent+INDENT, "raise runtime.SyntaxError(pos=self._scanner.get_pos(), context=_context, msg='Need one of ' + ', '.join(%s))\n" %
+                    gen.not_peek_test(gen.non_ignored_tokens(), self.follow, as_set=True))
+            gen.write(indent + INDENT, "raise runtime.SyntaxError(pos=self._scanner.get_pos(), context=_context, msg='Need one of ' + ', '.join(%s))\n" %
                     repr(self.first))

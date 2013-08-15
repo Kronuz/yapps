@@ -337,7 +337,7 @@ class Scanner(object):
                 if ignore:
                     ignore(self, best_m)
 
-    def peek(self, *types, **kwargs):
+    def peek(self, types, **kwargs):
         """Returns the token type for lookahead; if there are any args
         then the list of args is the set of token types to allow"""
         context = kwargs.get("context", None)
@@ -382,10 +382,10 @@ class Parser(object):
         self._scanner.stack_input(input, file, filename)
         self._tok = None
 
-    def _peek(self, *types, **kwargs):
+    def _peek(self, types, **kwargs):
         """Returns the token type for lookahead; if there are any args
         then the list of args is the set of token types to allow"""
-        return self._scanner.peek(*types, **kwargs)
+        return self._scanner.peek(types, **kwargs)
 
     def _scan(self, type, **kwargs):
         """Returns the matched text, and moves to the next token"""
