@@ -17,8 +17,6 @@ by running Yapps on yapps_grammar.g.  (Holy circularity, Batman!)
 
 """
 
-import re
-import sys
 try:
     from yapps import parsetree
 except ImportError:
