@@ -17,18 +17,28 @@ by running Yapps on yapps_grammar.g.  (Holy circularity, Batman!)
 
 """
 
-import sys, re
-from yapps import parsetree
+import re
+import sys
+try:
+    from yapps import parsetree
+except ImportError:
+    import parsetree
+
 
 ######################################################################
 def cleanup_choice(rule, lst):
-    if len(lst) == 0: return Sequence(rule, [])
-    if len(lst) == 1: return lst[0]
+    if len(lst) == 0:
+        return parsetree.Sequence(rule, [])
+    if len(lst) == 1:
+        return lst[0]
     return parsetree.Choice(rule, *tuple(lst))
 
+
 def cleanup_sequence(rule, lst):
-    if len(lst) == 1: return lst[0]
+    if len(lst) == 1:
+        return lst[0]
     return parsetree.Sequence(rule, *tuple(lst))
+
 
 def resolve_name(rule, tokens, id, args):
     if id in [x[0] for x in tokens]:
@@ -60,62 +70,65 @@ parser ParserDescription:
     token QUEST: '[?]'
     token COLON: ':'
 
-    rule Parser: "parser" ID ":"
-                   Options
-                   Tokens
-                   Rules<<Tokens>>
-                 EOF
-                 {{ return parsetree.Generator(ID,Options,Tokens,Rules) }}
+    rule Parser:    "parser" ID ":"
+                    Options
+                    Tokens
+                    Rules<<Tokens>>
+                    EOF
+                    {{ return parsetree.Generator(ID, Options, Tokens, Rules) }}
 
-    rule Options: {{ opt = {} }}
-                  ( "option" ":" Str {{ opt[Str] = 1 }} )*
-                  {{ return opt }}
+    rule Options:   {{ opt = {} }}
+                    ( "option" ":" Str {{ opt[Str] = 1 }} )*
+                    {{ return opt }}
 
-    rule Tokens:  {{ tok = [] }}
-                  (
-                    "token" ID ":" Str {{ tok.append( (ID,Str) ) }}
-                  | "ignore"
-				    ":" Str {{ ign = ('#ignore',Str) }}
-				    ( STMT  {{ ign = ign + (STMT[2:-2],) }} )?
-				            {{ tok.append( ign ) }}
-                  )*
-                  {{ return tok }}
+    rule Tokens:    {{ tok = [] }}
+                    (
+                      "token" ID
+                      ":" Str   {{ tid = (ID, Str) }}
+                                {{ tok.append(tid) }}
+                    | "ignore"
+                      ":" Str   {{ ign = ('#ignore', Str) }}
+                        ( STMT  {{ ign += (STMT[2:-2],) }} )?
+                                {{ tok.append(ign) }}
+                    )*
+                    {{ return tok }}
 
     rule Rules<<tokens>>:
-                  {{ rul = [] }}
-                  (
-                    "rule" ID OptParam ":" ClauseA<<ID, tokens>>
-                    {{ rul.append( (ID, OptParam, ClauseA) ) }}
-                  )*
-                  {{ return rul }}
+                    {{ rul = [] }}
+                    (
+                        "rule" ID OptParam ":" ClauseA<<ID, tokens>>
+                        {{ rul.append((ID, OptParam, ClauseA)) }}
+                    )*
+                    {{ return rul }}
 
     rule ClauseA<<rule, tokens>>:
-                  ClauseB<<rule,tokens>>
-                  {{ v = [ClauseB] }}
-                  ( OR ClauseB<<rule,tokens>> {{ v.append(ClauseB) }} )*
-                  {{ return cleanup_choice(rule,v) }}
+                    ClauseB<<rule, tokens>>
+                    {{ v = [ClauseB] }}
+                    ( OR ClauseB<<rule, tokens>> {{ v.append(ClauseB) }} )*
+                    {{ return cleanup_choice(rule, v) }}
 
-    rule ClauseB<<rule,tokens>>:
-                  {{ v = [] }}
-                  ( ClauseC<<rule,tokens>> {{ v.append(ClauseC) }} )*
-                  {{ return cleanup_sequence(rule, v) }}
+    rule ClauseB<<rule, tokens>>:
+                    {{ v = [] }}
+                    ( ClauseC<<rule, tokens>> {{ v.append(ClauseC) }} )*
+                    {{ return cleanup_sequence(rule, v) }}
 
-    rule ClauseC<<rule,tokens>>:
-                  ClauseD<<rule,tokens>>
-                  ( PLUS {{ return parsetree.Plus(rule, ClauseD) }}
-                  | STAR {{ return parsetree.Star(rule, ClauseD) }}
-                  | QUEST {{ return parsetree.Option(rule, ClauseD) }}
-                  |      {{ return ClauseD }} )
+    rule ClauseC<<rule, tokens>>:
+                    ClauseD<<rule, tokens>>
+                    ( PLUS  {{ return parsetree.Plus(rule, ClauseD) }}
+                    | STAR  {{ return parsetree.Star(rule, ClauseD) }}
+                    | QUEST {{ return parsetree.Option(rule, ClauseD) }}
+                    |       {{ return ClauseD }} )
 
-    rule ClauseD<<rule,tokens>>:
-                  STR {{ t = (STR, eval(STR,{},{})) }}
-                      {{ if t not in tokens: tokens.insert( 0, t ) }}
-                      {{ return parsetree.Terminal(rule, STR) }}
-                | ID OptParam {{ return resolve_name(rule,tokens, ID, OptParam) }}
-                | LP ClauseA<<rule,tokens>> RP {{ return ClauseA }}
-                | LB ClauseA<<rule,tokens>> RB {{ return parsetree.Option(rule, ClauseA) }}
-                | STMT {{ return parsetree.Eval(rule, STMT[2:-2]) }}
+    rule ClauseD<<rule, tokens>>:
+                      STR {{ t = (STR, eval(STR, {}, {})) }}
+                          {{ if t not in tokens: }}
+                          {{     tokens.insert(0, t) }}
+                          {{ return parsetree.Terminal(rule, STR) }}
+                    | ID OptParam {{ return resolve_name(rule, tokens, ID, OptParam) }}
+                    | LP ClauseA<<rule, tokens>> RP {{ return ClauseA }}
+                    | LB ClauseA<<rule, tokens>> RB {{ return parsetree.Option(rule, ClauseA) }}
+                    | STMT {{ return parsetree.Eval(rule, STMT[2:-2]) }}
 
-    rule OptParam: [ ATTR {{ return ATTR[2:-2] }} ] {{ return '' }}
-    rule Str:   STR {{ return eval(STR,{},{}) }}
+    rule OptParam:  [ ATTR {{ return ATTR[2:-2] }} ] {{ return '' }}
+    rule Str:       STR {{ return eval(STR, {}, {}) }}
 %%

@@ -17,10 +17,12 @@ keeps track of the parse stack.
 
 """
 
-import sys, re
+import re
+import sys
 
-MIN_WINDOW=4096
+MIN_WINDOW = 4096
 # File lookup window
+
 
 class SyntaxError(Exception):
     """When we run into an unexpected token, this is the exception to use"""
@@ -31,12 +33,16 @@ class SyntaxError(Exception):
         self.context = context
 
     def __str__(self):
-        if not self.pos: return 'SyntaxError'
-        else: return 'SyntaxError@%s(%s)' % (repr(self.pos), self.msg)
+        if not self.pos:
+            return 'SyntaxError'
+        else:
+            return 'SyntaxError@%s(%s)' % (repr(self.pos), self.msg)
+
 
 class NoMoreTokens(Exception):
     """Another exception object, for when we run out of tokens"""
     pass
+
 
 class Token(object):
     """Yapps token.
@@ -44,7 +50,7 @@ class Token(object):
     This is a container for a scanned token.
     """
 
-    def __init__(self, type,value, pos=None):
+    def __init__(self, type, value, pos=None):
         """Initialize a token."""
         self.type = type
         self.value = value
@@ -63,7 +69,10 @@ class Token(object):
         output += ">"
         return output
 
-in_name=0
+
+in_name = 0
+
+
 class Scanner(object):
     """Yapps scanner.
 
@@ -77,7 +86,7 @@ class Scanner(object):
     """
 
     def __init__(self, patterns, ignore, input="",
-            file=None,filename=None,stacked=False):
+            file=None, filename=None, stacked=False):
         """Initialize the scanner.
 
         Parameters:
@@ -97,7 +106,7 @@ class Scanner(object):
 
         if not filename:
             global in_name
-            filename="<f.%d>" % in_name
+            filename = "<f.%d>" % in_name
             in_name += 1
 
         self.input = input
@@ -105,9 +114,9 @@ class Scanner(object):
         self.file = file
         self.filename = filename
         self.pos = 0
-        self.del_pos = 0 # skipped
+        self.del_pos = 0  # skipped
         self.line = 1
-        self.del_line = 0 # skipped
+        self.del_line = 0  # skipped
         self.col = 0
         self.tokens = []
         self.stack = None
@@ -121,7 +130,7 @@ class Scanner(object):
             # Compile the regex strings into regex objects
             self.patterns = []
             for terminal, regex in patterns:
-                self.patterns.append( (terminal, re.compile(regex)) )
+                self.patterns.append((terminal, re.compile(regex)))
 
     def stack_input(self, input="", file=None, filename=None):
         """Temporarily parse from a second file."""
@@ -137,7 +146,7 @@ class Scanner(object):
                 except TypeError:
                     pass
                 # now pass off to the include file
-            self.stack.stack_input(input,file,filename)
+            self.stack.stack_input(input, file, filename)
         else:
 
             try:
@@ -152,11 +161,12 @@ class Scanner(object):
 
             # Note that the pattern+ignore are added by the generated
             # scanner code
-            self.stack = self.__class__(input,file,filename, stacked=True)
+            self.stack = self.__class__(input, file, filename, stacked=True)
 
     def get_pos(self):
         """Return a file/line/char tuple."""
-        if self.stack: return self.stack.get_pos()
+        if self.stack:
+            return self.stack.get_pos()
 
         return (self.filename, self.line+self.del_line, self.col)
 
@@ -171,23 +181,24 @@ class Scanner(object):
         """Print the line of 'text' that includes position 'p',
         along with a second line with a single caret (^) at position p"""
 
-        file,line,p = pos
+        file, line, p = pos
         if file != self.filename:
-            if self.stack: return self.stack.print_line_with_pointer(pos,length=length,out=out)
+            if self.stack:
+                return self.stack.print_line_with_pointer(pos, length=length, out=out)
             print >>out, "(%s: not in input buffer)" % file
             return
 
         text = self.input
-        p += length-1 # starts at pos 1
+        p += length - 1  # starts at pos 1
 
-        origline=line
+        origline = line
         line -= self.del_line
-        spos=0
+        spos = 0
         if line > 0:
             while 1:
                 line = line - 1
                 try:
-                    cr = text.index("\n",spos)
+                    cr = text.index("\n", spos)
                 except ValueError:
                     if line:
                         text = ""
@@ -197,7 +208,7 @@ class Scanner(object):
                     break
                 spos = cr+1
         else:
-            print >>out, "(%s:%d not in input buffer)" % (file,origline)
+            print >>out, "(%s:%d not in input buffer)" % (file, origline)
             return
 
         # Now try printing part of the line
@@ -207,7 +218,8 @@ class Scanner(object):
         # Strip to the left
         i = text[:p].rfind('\n')
         j = text[:p].rfind('\r')
-        if i < 0 or (0 <= j < i): i = j
+        if i < 0 or (0 <= j < i):
+            i = j
         if 0 <= i < p:
             p = p - i - 1
             text = text[i+1:]
@@ -215,7 +227,8 @@ class Scanner(object):
         # Strip to the right
         i = text.find('\n', p)
         j = text.find('\r', p)
-        if i < 0 or (0 <= j < i): i = j
+        if i < 0 or (0 <= j < i):
+            i = j
         if i >= 0:
             text = text[:i]
 
@@ -226,13 +239,15 @@ class Scanner(object):
             p = p - 7
 
         # Now print the string, along with an indicator
-        print >>out, '> ',text
-        print >>out, '> ',' '*p + '^'
+        print >>out, '> ', text
+        print >>out, '> ', ' ' * p + '^'
 
     def grab_input(self):
         """Get more input if possible."""
-        if not self.file: return
-        if len(self.input) - self.pos >= MIN_WINDOW: return
+        if not self.file:
+            return
+        if len(self.input) - self.pos >= MIN_WINDOW:
+            return
 
         data = self.file.read(MIN_WINDOW)
         if data is None or data == "":
@@ -269,7 +284,7 @@ class Scanner(object):
             self.grab_input()
 
             # special handling for end-of-file
-            if self.stacked and self.pos==len(self.input):
+            if self.stacked and self.pos == len(self.input):
                 raise StopIteration
 
             # Search the patterns for the longest match, with earlier
@@ -285,20 +300,20 @@ class Scanner(object):
                 if m and m.end()-m.start() > best_match:
                     # We got a match that's better than the previous one
                     best_pat = p
-                    best_match = m.end()-m.start()
+                    best_match = m.end() - m.start()
                     best_m = m
 
             # If we didn't find anything, raise an error
             if best_pat == '(error)' and best_match < 0:
                 msg = 'Bad Token'
                 if restrict:
-                    msg = 'Trying to find one of '+', '.join(restrict)
+                    msg = 'Trying to find one of ' + ', '.join(restrict)
                 raise SyntaxError(self.get_pos(), msg, context=context)
 
             ignore = best_pat in self.ignore
             value = self.input[self.pos:self.pos+best_match]
             if not ignore:
-                tok=Token(type=best_pat, value=value, pos=self.get_pos())
+                tok = Token(type=best_pat, value=value, pos=self.get_pos())
 
             self.pos += best_match
 
@@ -322,25 +337,25 @@ class Scanner(object):
                 if ignore:
                     ignore(self, best_m)
 
-    def peek(self, *types, **kw):
+    def peek(self, *types, **kwargs):
         """Returns the token type for lookahead; if there are any args
         then the list of args is the set of token types to allow"""
-        context = kw.get("context",None)
+        context = kwargs.get("context", None)
         if self.last_token is None:
             self.last_types = types
-            self.last_token = self.token(types,context)
+            self.last_token = self.token(types, context)
         elif self.last_types:
             for t in types:
                 if t not in self.last_types:
                     raise NotImplementedError("Unimplemented: restriction set changed")
         return self.last_token.type
 
-    def scan(self, type, **kw):
+    def scan(self, type, **kwargs):
         """Returns the matched text, and moves to the next token"""
-        context = kw.get("context",None)
+        context = kwargs.get("context", None)
 
         if self.last_token is None:
-            tok = self.token([type],context)
+            tok = self.token([type], context)
         else:
             if self.last_types and type not in self.last_types:
                 raise NotImplementedError("Unimplemented: restriction set changed")
@@ -348,9 +363,11 @@ class Scanner(object):
             tok = self.last_token
             self.last_token = None
         if tok.type != type:
-            if not self.last_types: self.last_types=[]
-            raise SyntaxError(tok.pos, 'Trying to find '+type+': '+ ', '.join(self.last_types)+", got "+tok.type, context=context)
+            if not self.last_types:
+                self.last_types = []
+            raise SyntaxError(tok.pos, 'Trying to find ' + type + ': ' + ', '.join(self.last_types) + ", got " + tok.type, context=context)
         return tok.value
+
 
 class Parser(object):
     """Base class for Yapps-generated parsers.
@@ -360,19 +377,20 @@ class Parser(object):
     def __init__(self, scanner):
         self._scanner = scanner
 
-    def _stack(self, input="",file=None,filename=None):
+    def _stack(self, input="", file=None, filename=None):
         """Temporarily read from someplace else"""
-        self._scanner.stack_input(input,file,filename)
+        self._scanner.stack_input(input, file, filename)
         self._tok = None
 
-    def _peek(self, *types, **kw):
+    def _peek(self, *types, **kwargs):
         """Returns the token type for lookahead; if there are any args
         then the list of args is the set of token types to allow"""
-        return self._scanner.peek(*types, **kw)
+        return self._scanner.peek(*types, **kwargs)
 
-    def _scan(self, type, **kw):
+    def _scan(self, type, **kwargs):
         """Returns the matched text, and moves to the next token"""
-        return self._scanner.scan(type, **kw)
+        return self._scanner.scan(type, **kwargs)
+
 
 class Context(object):
     """Class to represent the parser's call stack.
@@ -396,14 +414,17 @@ class Context(object):
         self.scanner = scanner
         self.rule = rule
         self.args = args
-        while scanner.stack: scanner = scanner.stack
+        while scanner.stack:
+            scanner = scanner.stack
         self.token = scanner.last_read_token
 
     def __str__(self):
         output = ''
-        if self.parent: output = str(self.parent) + ' > '
+        if self.parent:
+            output = str(self.parent) + ' > '
         output += self.rule
         return output
+
 
 def print_error(err, scanner, max_ctx=None):
     """Print error messages, the parser stack, and the input text -- for human-readable error messages."""
@@ -432,9 +453,10 @@ def print_error(err, scanner, max_ctx=None):
             if not max_ctx:
                 break
 
-def wrap_error_reporter(parser, rule, *args,**kw):
+
+def wrap_error_reporter(parser, rule, *args, **kwargs):
     try:
-        return getattr(parser, rule)(*args,**kw)
+        return getattr(parser, rule)(*args, **kwargs)
     except SyntaxError, e:
         print_error(e, parser._scanner)
     except NoMoreTokens:

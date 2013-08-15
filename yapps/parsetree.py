@@ -17,10 +17,12 @@ used to represent the parse tree; they are derived from class Node.
 The main logic of Yapps is in this module.
 """
 
-import sys, re
+import re
+import sys
 
 ######################################################################
-INDENT = ' '*4
+INDENT = ' ' * 4
+
 
 class Generator:
 
@@ -33,14 +35,14 @@ class Generator:
         self.preparser = ''
         self.postparser = None
 
-        self.tokens = {} # Map from tokens to regexps
-        self.ignore = {} # List of token names to ignore in parsing, map to statements
-        self.terminals = [] # List of token names (to maintain ordering)
+        self.tokens = {}  # Map from tokens to regexps
+        self.ignore = {}  # List of token names to ignore in parsing, map to statements
+        self.terminals = []  # List of token names (to maintain ordering)
         for t in tokens:
             if len(t) == 3:
-                n,t,s = t
+                n, t, s = t
             else:
-                n,t = t
+                n, t = t
                 s = None
 
             if n == '#ignore':
@@ -51,10 +53,10 @@ class Generator:
             self.tokens[n] = t
             self.terminals.append(n)
 
-        self.rules = {} # Map from rule names to parser nodes
-        self.params = {} # Map from rule names to parameters
-        self.goals = [] # List of rule names (to maintain ordering)
-        for n,p,r in rules:
+        self.rules = {}  # Map from rule names to parser nodes
+        self.params = {}  # Map from rule names to parameters
+        self.goals = []  # List of rule names (to maintain ordering)
+        for n, p, r in rules:
             self.params[n] = p
             self.rules[n] = r
             self.goals.append(n)
@@ -132,8 +134,10 @@ class Generator:
         >>> t.equal_set([1, 2, 3], [3, 2, 1])
         1
         """
-        if len(a) != len(b): return 0
-        if a == b: return 1
+        if len(a) != len(b):
+            return 0
+        if a == b:
+            return 1
         return self.subset(a, b) and self.subset(b, a)
 
     def add_to(self, parent, additions):
@@ -184,8 +188,10 @@ class Generator:
         'x != 5'
         """
 
-        if not set: return '0'
-        if len(set) == 1: return '%s == %s' % (expr, repr(set[0]))
+        if not set:
+            return '0'
+        if len(set) == 1:
+            return '%s == %s' % (expr, repr(set[0]))
         if full and len(set) > len(full)/2:
             # Reverse the sense of the test.
             not_set = [x for x in full if x not in set]
@@ -194,30 +200,38 @@ class Generator:
 
     def not_in_test(self, expr, full, set):
         """Like in_test, but the reverse test."""
-        if not set: return '1'
-        if len(set) == 1: return '%s != %s' % (expr, repr(set[0]))
+        if not set:
+            return '1'
+        if len(set) == 1:
+            return '%s != %s' % (expr, repr(set[0]))
         return '%s not in %s' % (expr, repr(set))
 
     def peek_call(self, a):
         """Generate a call to scan for a token in the set 'a'"""
-        assert type(a) == type([])
+        assert isinstance(a, list)
         a_set = (repr(a)[1:-1])
-        if self.equal_set(a, self.non_ignored_tokens()): a_set = ''
-        if self.has_option('context_insensitive_scanner'): a_set = ''
-        if a_set: a_set += ","
+        if self.equal_set(a, self.non_ignored_tokens()):
+            a_set = ''
+        if self.has_option('context_insensitive_scanner'):
+            a_set = ''
+        if a_set:
+            a_set += ","
 
         return 'self._peek(%s context=_context)' % a_set
 
     def peek_test(self, a, b):
         """Generate a call to test whether the next token (which could be any of
         the elements in a) is in the set b."""
-        if self.subset(a, b): return '1'
-        if self.has_option('context_insensitive_scanner'): a = self.non_ignored_tokens()
+        if self.subset(a, b):
+            return '1'
+        if self.has_option('context_insensitive_scanner'):
+            a = self.non_ignored_tokens()
         return self.in_test(self.peek_call(a), a, b)
 
     def not_peek_test(self, a, b):
         """Like peek_test, but the opposite sense."""
-        if self.subset(a, b): return '0'
+        if self.subset(a, b):
+            return '0'
         return self.not_in_test(self.peek_call(a), a, b)
 
     def calculate(self):
@@ -229,14 +243,16 @@ class Generator:
         while 1:
             for r in self.goals:
                 self.rules[r].setup(self)
-            if self.change_count == 0: break
+            if self.change_count == 0:
+                break
             self.change_count = 0
 
         # Now we compute the first/follow sets
         while 1:
             for r in self.goals:
                 self.rules[r].update(self)
-            if self.change_count == 0: break
+            if self.change_count == 0:
+                break
             self.change_count = 0
 
     def dump_information(self):
@@ -254,16 +270,19 @@ class Generator:
                 top.first.sort()
                 top.follow.sort()
                 eps = []
-                if top.accepts_epsilon: eps = ['(null)']
+                if top.accepts_epsilon:
+                    eps = ['(null)']
                 print '     FIRST:', ', '.join(top.first+eps)
                 print '    FOLLOW:', ', '.join(top.follow)
-                for x in top.get_children(): queue.append(x)
+                for x in top.get_children():
+                    queue.append(x)
 
     def repr_ignore(self):
-        out="{"
-        for t,s in self.ignore.iteritems():
-            if s is None: s=repr(s)
-            out += "%s:%s," % (repr(t),s)
+        out = "{"
+        for t, s in self.ignore.iteritems():
+            if s is None:
+                s = repr(s)
+            out += "%s: %s, " % (repr(t), s)
         out += "}"
         return out
 
@@ -271,25 +290,30 @@ class Generator:
         self.calculate()
         self.write(self.preparser)
         self.write("# Begin -- grammar generated by Yapps\n")
-        self.write("import sys, re\n")
-        self.write("from yapps import runtime\n")
-        self.write("\n")
+        self.write("import re\n")
+        self.write("import sys\n")
+        self.write("try:\n")
+        self.write("    from yapps import runtime\n")
+        self.write("except ImportError:\n")
+        self.write("    import runtime\n")
+        self.write("\n\n")
         self.write("class ", self.name, "Scanner(runtime.Scanner):\n")
         self.write(INDENT, "patterns = [\n")
         for p in self.terminals:
             self.write(INDENT*2, "(%s, re.compile(%s)),\n" % (
                 repr(p), repr(self.tokens[p])))
-        self.write(INDENT, "]\n")
-        self.write(INDENT, "def __init__(self, str,*args,**kw):\n")
-        self.write(INDENT*2, "runtime.Scanner.__init__(self,None,%s,str,*args,**kw)\n" %
+        self.write(INDENT, "]\n\n")
+        self.write(INDENT, "def __init__(self, str, *args, **kw):\n")
+        self.write(INDENT*2, "runtime.Scanner.__init__(self, None, %s, str, *args, **kw)\n" %
                    self.repr_ignore())
-        self.write("\n")
+        self.write("\n\n")
 
         self.write("class ", self.name, "(runtime.Parser):\n")
-        self.write(INDENT, "Context = runtime.Context\n")
+        self.write(INDENT, "Context = runtime.Context\n\n")
         for r in self.goals:
             self.write(INDENT, "def ", r, "(self")
-            if self.params[r]: self.write(", ", self.params[r])
+            if self.params[r]:
+                self.write(", ", self.params[r])
             self.write(", _parent=None):\n")
             self.write(INDENT*2, "_context = self.Context(_parent, self._scanner, %s, [%s])\n" %
                        (repr(r), self.params.get(r, '')))
@@ -309,18 +333,20 @@ class Generator:
             self.write(INDENT, "from sys import argv, stdin\n")
             self.write(INDENT, "if len(argv) >= 2:\n")
             self.write(INDENT*2, "if len(argv) >= 3:\n")
-            self.write(INDENT*3, "f = open(argv[2],'r')\n")
+            self.write(INDENT*3, "f = open(argv[2], 'r')\n")
             self.write(INDENT*2, "else:\n")
             self.write(INDENT*3, "f = stdin\n")
             self.write(INDENT*2, "print parse(argv[1], f.read())\n")
-            self.write(INDENT, "else: print >>sys.stderr, 'Args:  <rule> [<filename>]'\n")
+            self.write(INDENT, "else:\n")
+            self.write(INDENT*2, "print >>sys.stderr, 'Args:  <rule> [<filename>]'\n")
             self.write("# End -- grammar generated by Yapps\n")
+
 
 ######################################################################
 class Node:
     """This is the base class for all components of a grammar."""
     def __init__(self, rule):
-        self.rule = rule # name of the rule containing this node
+        self.rule = rule  # name of the rule containing this node
         self.first = []
         self.follow = []
         self.accepts_epsilon = 0
@@ -348,7 +374,8 @@ class Node:
 
     def output(self, gen, indent):
         "Write out code to _gen_ with _indent_:string indentation"
-        gen.write(indent, "assert 0 # Invalid parser node\n")
+        gen.write(indent, "assert 0  # Invalid parser node\n")
+
 
 class Terminal(Node):
     """This class stores terminal nodes, which are tokens."""
@@ -372,10 +399,13 @@ class Terminal(Node):
             gen.write(self.token, " = ")
         gen.write("self._scan(%s, context=_context)\n" % repr(self.token))
 
+
 class Eval(Node):
     """This class stores evaluation nodes, from {{ ... }} clauses."""
     def __init__(self, rule, expr):
         Node.__init__(self, rule)
+        if expr[0] == ' ' and expr[0] == expr[-1]:
+            expr = expr[1:-1]
         self.expr = expr
 
     def setup(self, gen):
@@ -385,10 +415,11 @@ class Eval(Node):
             gen.changed()
 
     def __str__(self):
-        return '{{ %s }}' % self.expr.strip()
+        return '{{ %s }}' % self.expr
 
     def output(self, gen, indent):
-        gen.write(indent, self.expr.strip(), '\n')
+        gen.write(indent, self.expr, '\n')
+
 
 class NonTerminal(Node):
     """This class stores nonterminal nodes, which are rules with arguments."""
@@ -404,7 +435,7 @@ class NonTerminal(Node):
             if self.accepts_epsilon != self.target.accepts_epsilon:
                 self.accepts_epsilon = self.target.accepts_epsilon
                 gen.changed()
-        except KeyError: # Oops, it's nonexistent
+        except KeyError:  # Oops, it's nonexistent
             print >>sys.stderr, 'Error: no rule <%s>' % self.name
             self.target = self
 
@@ -420,9 +451,11 @@ class NonTerminal(Node):
         gen.write(indent)
         gen.write(self.name, " = ")
         args = self.args
-        if args: args += ', '
+        if args:
+            args += ', '
         args += '_context'
         gen.write("self.", self.name, "(", args, ")\n")
+
 
 class Sequence(Node):
     """This class stores a sequence of nodes (A B C ...)"""
@@ -432,13 +465,15 @@ class Sequence(Node):
 
     def setup(self, gen):
         Node.setup(self, gen)
-        for c in self.children: c.setup(gen)
+        for c in self.children:
+            c.setup(gen)
 
         if not self.accepts_epsilon:
             # If it's not already accepting epsilon, it might now do so.
             for c in self.children:
                 # any non-epsilon means all is non-epsilon
-                if not c.accepts_epsilon: break
+                if not c.accepts_epsilon:
+                    break
             else:
                 self.accepts_epsilon = 1
                 gen.changed()
@@ -458,8 +493,10 @@ class Sequence(Node):
         for g_i in range(len(self.children)):
             g = self.children[g_i]
 
-            if empty: gen.add_to(self.first, g.first)
-            if not g.accepts_epsilon: empty = 0
+            if empty:
+                gen.add_to(self.first, g.first)
+            if not g.accepts_epsilon:
+                empty = 0
 
             if g_i == len(self.children)-1:
                 next = self.follow
@@ -478,6 +515,7 @@ class Sequence(Node):
             # Placeholder for empty sequences, just in case
             gen.write(indent, 'pass\n')
 
+
 class Choice(Node):
     """This class stores a choice between nodes (A | B | C | ...)"""
     def __init__(self, rule, *children):
@@ -486,7 +524,8 @@ class Choice(Node):
 
     def setup(self, gen):
         Node.setup(self, gen)
-        for c in self.children: c.setup(gen)
+        for c in self.children:
+            c.setup(gen)
 
         if not self.accepts_epsilon:
             for c in self.children:
@@ -529,7 +568,8 @@ class Choice(Node):
                 if x in tokens_seen:
                     testset.remove(x)
                     removed.append(x)
-                if x in tokens_unseen: tokens_unseen.remove(x)
+                if x in tokens_unseen:
+                    tokens_unseen.remove(x)
             tokens_seen = tokens_seen + testset
             if removed:
                 if not testset:
@@ -541,7 +581,7 @@ class Choice(Node):
                 print >>sys.stderr, ' *', ' '.join(removed)
 
             if testset:
-                if not tokens_unseen: # context sensitive scanners only!
+                if not tokens_unseen:  # context sensitive scanners only!
                     if test == 'if':
                         # if it's the first AND last test, then
                         # we can simply put the code without an if/else
@@ -550,7 +590,7 @@ class Choice(Node):
                         gen.write(indent, "else:")
                         t = gen.in_test('', [], testset)
                         if len(t) < 70-len(indent):
-                            gen.write(' #', t)
+                            gen.write('  #', t)
                         gen.write("\n")
                         c.output(gen, indent+INDENT)
                 else:
@@ -564,6 +604,7 @@ class Choice(Node):
             gen.write(indent, "else:\n")
             gen.write(indent, INDENT, "raise runtime.SyntaxError(_token[0], ")
             gen.write("'Could not match ", self.rule, "')\n")
+
 
 class Wrapper(Node):
     """This is a base class for nodes that modify a single child."""
@@ -583,6 +624,7 @@ class Wrapper(Node):
         self.child.update(gen)
         gen.add_to(self.first, self.child.first)
         gen.equate(self.follow, self.child.follow)
+
 
 class Option(Wrapper):
     """This class represents an optional clause of the form [A]"""
